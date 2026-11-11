@@ -1,0 +1,121 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Single-row table holding the OpenAI-compatible endpoint configuration
+model Setting {
+  id          String   @id @default("singleton")
+  apiBaseUrl  String   @default("")
+  apiKey      String   @default("")
+  model       String   @default("")
+  temperature Float    @default(0.7)
+  language    String   @default("English")
+  updatedAt   DateTime @updatedAt
+}
+
+model Course {
+  id          String   @id @default(cuid())
+  title       String
+  topic       String
+  audience    String   @default("")
+  difficulty  String   @default("intermediate")
+  language    String   @default("English")
+  description String   @default("")
+  model       String   @default("") // model used to generate this course
+  status      String   @default("ready") // ready | generating | error
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  modules     Module[]
+  lessons     Lesson[]
+}
+
+model Module {
+  id        String   @id @default(cuid())
+  courseId  String
+  order     Int
+  title     String
+  summary   String   @default("")
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lessons   Lesson[]
+
+  @@index([courseId])
+}
+
+model Lesson {
+  id          String        @id @default(cuid())
+  moduleId    String
+  courseId    String
+  order       Int // global order within course
+  title       String
+  summary     String        @default("")
+  content     String        @default("") // markdown
+  status      String        @default("pending") // pending | generating | ready | error
+  error       String        @default("")
+  suggestions String        @default("") // JSON array of suggested questions ("" = not generated yet)
+  module      Module        @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  course      Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  quiz        QuizQuestion[]
+  progress    LessonProgress?
+  chats       LessonChat[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([moduleId])
+  @@index([courseId])
+}
+
+model QuizQuestion {
+  id          String  @id @default(cuid())
+  lessonId    String
+  order       Int
+  question    String
+  optionA     String
+  optionB     String
+  optionC     String
+  optionD     String
+  correctIndex Int    @default(0)
+  explanation String  @default("")
+  lesson      Lesson  @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@index([lessonId])
+}
+
+model LessonProgress {
+  id          String   @id @default(cuid())
+  lessonId    String   @unique
+  completed   Boolean  @default(false)
+  quizScore   Int      @default(0) // correct answers
+  quizTotal   Int      @default(0)
+  updatedAt   DateTime @updatedAt
+  lesson      Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+}
+
+// A conversation thread about one lesson. Each lesson can have several chats;
+// deleting the lesson deletes all of its chats.
+model LessonChat {
+  id        String   @id @default(cuid())
+  lessonId  String
+  title     String   @default("New chat")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  lesson    Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  messages  LessonChatMessage[]
+
+  @@index([lessonId])
+}
+
+model LessonChatMessage {
+  id        String    @id @default(cuid())
+  chatId    String
+  role      String // user | assistant
+  content   String
+  createdAt DateTime  @default(now())
+  chat      LessonChat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+
+  @@index([chatId])
+}
