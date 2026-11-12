@@ -80,6 +80,30 @@ reminds you whenever demo mode is active.
 - **Production**: `bun run build && bun run start` (Next.js standalone server).
 - **Requirements**: Node.js 18+ or Bun 1.x. No external services needed.
 
+## Run with Docker
+
+The image builds the Next.js standalone bundle and runs the production server;
+the SQLite database lives on a named volume mounted at `/data`, so courses
+survive restarts and rebuilds. The Prisma schema is applied automatically on
+every startup (`prisma db push` is idempotent), so a fresh volume provisions
+itself — nothing else to configure.
+
+```bash
+# with docker compose (recommended)
+docker compose up -d --build
+# then open http://localhost:3000
+
+# or plain docker
+docker build -t courseforge:latest .
+docker run -d --name courseforge -p 3000:3000 \
+  -v courseforge-data:/data courseforge:latest
+```
+
+To use a different host port, change the left side of `-p 3000:3000`. To point
+the app at a custom database location, override `DATABASE_URL` (must be a
+`file:` URL, e.g. `file:/data/my-courses.db`). Back up the volume (or copy
+`/data/custom.db` out of the container) to move your library.
+
 ## Project structure
 
 ```

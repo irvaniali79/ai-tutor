@@ -1,0 +1,16 @@
+services:
+  courseforge:
+    build: .
+    image: courseforge:latest
+    container_name: courseforge
+    ports:
+      - "3000:3000"
+    environment:
+      # SQLite file on the named volume — survives restarts and rebuilds
+      DATABASE_URL: file:/data/custom.db
+    volumes:
+      - courseforge-data:/data
+    restart: unless-stopped
+
+volumes:
+  courseforge-data:
