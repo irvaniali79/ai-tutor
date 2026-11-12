@@ -85,6 +85,40 @@ export default function Home() {
     setView('course')
   }
 
+  const exportCourse = async (id: string) => {
+    const res = await fetch(`/api/courses/${id}/export`)
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      throw new Error(body.error || `Export failed (HTTP ${res.status})`)
+    }
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    const name =
+      courses.find((c) => c.id === id)?.title.replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-+|-+$/g, '') ||
+      'course'
+    a.href = url
+    a.download = `${name}.courseforge.json`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+  }
+
+  const importCourse = async (file: File) => {
+    const res = await fetch('/api/courses/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: await file.text(),
+    })
+    const body = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      throw new Error(body.error || `Import failed (HTTP ${res.status})`)
+    }
+    await loadCourses()
+    return body.course as { id: string; title: string }
+  }
+
   return (
     <div className="dark min-h-screen bg-zinc-950 text-zinc-100">
       {view === 'library' ? (
@@ -98,6 +132,8 @@ export default function Home() {
           onOpenCourse={openCourse}
           onDeleteCourse={deleteCourse}
           onEditCourse={editCourse}
+          onExportCourse={exportCourse}
+          onImportCourse={importCourse}
         />
       ) : courseId ? (
         <CourseView
