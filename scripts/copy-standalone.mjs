@@ -20,9 +20,13 @@ if (!existsSync(staticSrc)) {
 if (!existsSync(serverJs)) {
   console.error(
     'copy-standalone: .next/standalone/server.js not found.\n' +
-      'The "standalone" output was not generated. Make sure next.config.ts contains:\n' +
-      "  const nextConfig: NextConfig = { output: 'standalone' };\n" +
-      'then run "bun run build" again.'
+      'Common causes:\n' +
+      "  1. next.config.ts is missing `output: 'standalone'`.\n" +
+      "  2. The workspace root was inferred wrongly (a stray package-lock.json in a\n" +
+      "     parent folder), so the standalone output was written outside this project —\n" +
+      '     check for a .next/standalone folder next to that lockfile, and make sure\n' +
+      '     next.config.ts pins `turbopack: { root: path.resolve(__dirname) }`.\n' +
+      'Then run "bun run build" again.'
   )
   process.exit(1)
 }

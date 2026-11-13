@@ -80,6 +80,7 @@ export async function POST(req: NextRequest) {
           language: str(course.language, 50) || 'English',
           description: str(course.description, 2000),
           model: `${str(course.model, 200)} (imported)`.trim(),
+          sourceContent: str(course.sourceContent, 2_000_000),
         },
       })
 
@@ -186,6 +187,7 @@ type ImportCourse = {
   language?: unknown
   description?: unknown
   model?: unknown
+  sourceContent?: unknown
   modules?: unknown
 }
 

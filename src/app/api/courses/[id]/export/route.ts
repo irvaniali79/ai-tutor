@@ -50,6 +50,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
       language: course.language,
       description: course.description,
       model: course.model,
+      sourceContent: course.sourceContent,
       modules: course.modules.map((m) => ({
         order: m.order,
         title: m.title,
