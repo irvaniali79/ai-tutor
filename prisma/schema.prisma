@@ -28,6 +28,7 @@ model Course {
   description String   @default("")
   model       String   @default("") // model used to generate this course
   status      String   @default("ready") // ready | generating | error
+  sourceContent String @default("") // extracted text of an uploaded source file ("" = topic-only course)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   modules     Module[]

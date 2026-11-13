@@ -11,7 +11,15 @@ export async function POST(_req: NextRequest, { params }: Params) {
     where: { id },
     include: {
       module: true,
-      course: { select: { id: true, title: true, description: true, difficulty: true } },
+      course: {
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          difficulty: true,
+          sourceContent: true,
+        },
+      },
     },
   })
   if (!lesson) {
@@ -51,6 +59,8 @@ export async function POST(_req: NextRequest, { params }: Params) {
     previousLessonTitles: previousLessons.map((l) => l.title),
     difficulty: lesson.course.difficulty,
     language: cfg.language,
+    // ground the lesson in the uploaded source file, when the course has one
+    sourceContent: lesson.course.sourceContent || undefined,
   })
 
   const stream = new ReadableStream<Uint8Array>({

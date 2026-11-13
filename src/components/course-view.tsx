@@ -6,6 +6,7 @@ import { Progress } from '@/components/ui/progress'
 import { LessonReader } from '@/components/lesson-reader'
 import { LessonChat } from '@/components/lesson-chat'
 import { EditEntityDialog } from '@/components/edit-dialog'
+import { AiUpdateCourseDialog } from '@/components/ai-update-course-dialog'
 import {
   ArrowLeft,
   BookOpen,
@@ -18,6 +19,7 @@ import {
   MessageSquare,
   Pencil,
   Sparkles,
+  Wand2,
   X,
 } from 'lucide-react'
 import type { CourseDetail, LessonNavItem } from '@/lib/types'
@@ -36,6 +38,7 @@ export function CourseView({ courseId, onBack }: { courseId: string; onBack: () 
     null
   )
   const [courseEditOpen, setCourseEditOpen] = useState(false)
+  const [aiUpdateOpen, setAiUpdateOpen] = useState(false)
   const [moduleEdit, setModuleEdit] = useState<{ id: string; title: string; summary: string } | null>(
     null
   )
@@ -95,8 +98,16 @@ export function CourseView({ courseId, onBack }: { courseId: string; onBack: () 
     setQueueRunning(false)
   }
 
-  const saveCourseEdit = async (values: Record<string, string>) => {
-    const res = await fetch(`/api/courses/${courseId}`, {
+  const handleCourseUpdated = (updated: CourseDetail) => {
+    setCourse(updated)
+    // if the AI restructure removed the lesson we were reading, fall back
+    const stillThere = updated.modules.some((m) =>
+      m.lessons.some((l) => l.id === selectedLessonId)
+    )
+    if (!stillThere) setSelectedLessonId(null)
+  }
+
+  const saveCourseEdit = async (values: Record<string, string>) => {    const res = await fetch(`/api/courses/${courseId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title: values.title, description: values.description }),
@@ -158,6 +169,16 @@ export function CourseView({ courseId, onBack }: { courseId: string; onBack: () 
         </Button>
         <div className="flex items-start gap-1.5">
           <h2 className="font-semibold text-zinc-100 leading-snug flex-1">{course.title}</h2>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setAiUpdateOpen(true)}
+            aria-label="Expand or edit this course with AI"
+            title="Update course with AI (expand / edit)"
+            className="h-7 w-7 shrink-0 text-zinc-500 hover:text-emerald-400 hover:bg-zinc-800"
+          >
+            <Wand2 className="h-3.5 w-3.5" />
+          </Button>
           <Button
             variant="ghost"
             size="icon"
@@ -363,6 +384,12 @@ export function CourseView({ courseId, onBack }: { courseId: string; onBack: () 
         </Button>
       )}
 
+      <AiUpdateCourseDialog
+        open={aiUpdateOpen}
+        onOpenChange={setAiUpdateOpen}
+        course={course}
+        onUpdated={handleCourseUpdated}
+      />
       <EditEntityDialog
         open={courseEditOpen}
         onOpenChange={setCourseEditOpen}

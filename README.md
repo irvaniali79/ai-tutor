@@ -11,6 +11,21 @@ vLLM, Groq, OpenAI, and more.
 
 - **Course outline generation** — topic → modules → lessons, with audience, difficulty,
   module/lesson count controls and output language selection.
+- **Build a course from a file** — attach a PDF, Word (.docx), markdown/text, CSV or
+  source-code file and the AI designs the course around that document; the extracted
+  text is stored with the course and every lesson is grounded in the material
+  (terminology, facts and examples come from your file, not the model's imagination).
+  Legacy .doc and scanned/image-only PDFs are not supported.
+- **Model-decided structure** — pick "AI decides" and the model sizes the course itself:
+  it chooses how many modules are needed and how many lessons each one gets (capped at
+  12 modules × 12 lessons as a safety net), or switch to "Fixed numbers" for the
+  classic module/lesson sliders.
+- **Expand / edit a course with AI** — the wand button in the course sidebar opens an
+  update dialog: "Expand" only appends new modules and lessons (a prompt, a reference
+  file, or both); "Edit structure" lets the model rename, reorder, add or remove
+  modules/lessons. Lessons the model keeps retain their generated content, quiz results
+  and progress — only omitted ones are deleted. Reference-file text is stored with the
+  course so future lessons stay grounded in it.
 - **Live streaming lesson generation** — each lesson (~800–1400 words of markdown with
   code blocks, tables and a summary) streams token-by-token into the reader.
 - **Per-lesson quiz** — 4 AI-generated multiple-choice questions with scoring,
@@ -43,8 +58,13 @@ bun run dev        # http://localhost:3000
 ```
 
 > **No `.env` needed.** The SQLite location defaults to `<project>/db/custom.db`
-> and is created automatically. To use a custom location, set `DATABASE_URL`
-> (e.g. `DATABASE_URL=file:C:/data/courseforge.db`) in a `.env` file or your shell.
+> and is created automatically. `db:push` / `db:migrate` / `db:reset` run through
+> `scripts/with-db-url.js`, which computes the same absolute location for the
+> Prisma CLI (and uses the Prisma version pinned in `package.json`, not a global
+> install). To use a custom location, set an **absolute** `DATABASE_URL` — copy
+> `.env.example` to `.env` for a template. Relative paths are intentionally not
+> supported: the Prisma CLI resolves them against `prisma/` while the app
+> resolves them against the project root, which would push to the wrong file.
 
 Then:
 
@@ -80,14 +100,53 @@ reminds you whenever demo mode is active.
 - **Production**: `bun run build && bun run start` (Next.js standalone server).
 - **Requirements**: Node.js 18+ or Bun 1.x. No external services needed.
 
+## Troubleshooting
+
+- **`error: Environment variable not found: DATABASE_URL` (P1012) when running
+  `bun run db:push`** — you are on an older copy of the repo whose `db:push`
+  script called `prisma` directly. Pull the latest version: `db:push`,
+  `db:migrate` and `db:reset` now run through `scripts/with-db-url.js`, which
+  supplies an absolute `DATABASE_URL` itself. Alternatively set `DATABASE_URL`
+  to an absolute `file:` path in a `.env` file (see `.env.example`).
+- **`[CLI.UNKNOWN_COMMAND] No command registered for 'push'`** — `bunx prisma`
+  downloaded a newer global Prisma major instead of the pinned one. The bundled
+  `scripts/with-db-url.js` avoids this by always invoking the project's own
+  `node_modules/prisma`; run `bun install` first so it exists.
+
+## Run with Docker
+
+The image builds the Next.js standalone bundle and runs the production server;
+the SQLite database lives on a named volume mounted at `/data`, so courses
+survive restarts and rebuilds. The Prisma schema is applied automatically on
+every startup (`prisma db push` is idempotent), so a fresh volume provisions
+itself — nothing else to configure.
+
+```bash
+# with docker compose (recommended)
+docker compose up -d --build
+# then open http://localhost:3000
+
+# or plain docker
+docker build -t courseforge:latest .
+docker run -d --name courseforge -p 3000:3000 \
+  -v courseforge-data:/data courseforge:latest
+```
+
+To use a different host port, change the left side of `-p 3000:3000`. To point
+the app at a custom database location, override `DATABASE_URL` (must be a
+`file:` URL, e.g. `file:/data/my-courses.db`). Back up the volume (or copy
+`/data/custom.db` out of the container) to move your library.
+
 ## Project structure
 
 ```
 prisma/schema.prisma          # Course / Module / Lesson / Quiz / Progress / Settings
 src/lib/llm.ts                # OpenAI-compatible client (streaming + JSON helpers)
 src/lib/prompts.ts            # Curriculum, lesson and quiz prompts + parsers
+src/lib/file-text.ts          # Source-file text extraction (PDF / DOCX / text)
 src/app/api/settings/         # GET/PUT settings, POST test connection
-src/app/api/courses/          # List / create (outline) / detail / delete
+src/app/api/courses/          # List / create (outline, file upload) / detail / delete
+                              #   / export / import / [id]/ai-update (expand & restructure with AI)
 src/app/api/lessons/[id]/generate   # SSE streaming lesson generation
 src/app/api/lessons/[id]/progress   # Completion + quiz score
 src/app/api/demo-llm/         # Built-in demo endpoint (OpenAI-compatible mock)

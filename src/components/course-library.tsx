@@ -24,8 +24,10 @@ import {
   Trash2,
   CircleAlert,
   Pencil,
+  Upload,
+  Download,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { CourseSummary } from '@/lib/types'
 
 export function CourseLibrary({
@@ -38,6 +40,8 @@ export function CourseLibrary({
   onOpenCourse,
   onDeleteCourse,
   onEditCourse,
+  onExportCourse,
+  onImportCourse,
 }: {
   courses: CourseSummary[]
   loading: boolean
@@ -48,6 +52,8 @@ export function CourseLibrary({
   onOpenCourse: (id: string) => void
   onDeleteCourse: (id: string) => void | Promise<void>
   onEditCourse: (id: string, values: { title: string; description: string }) => Promise<void>
+  onExportCourse: (id: string) => Promise<void>
+  onImportCourse: (file: File) => Promise<{ id: string; title: string }>
 }) {
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [editing, setEditing] = useState<CourseSummary | null>(null)
@@ -55,7 +61,52 @@ export function CourseLibrary({
   // permanently blocked by the browser ("prevent additional dialogs"), which
   // silently kills every later deletion
   const [confirmDelete, setConfirmDelete] = useState<CourseSummary | null>(null)
+  const [exportingId, setExportingId] = useState<string | null>(null)
+  const [importing, setImporting] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
+
+  const handleExport = async (course: CourseSummary) => {
+    if (exportingId) return
+    setExportingId(course.id)
+    try {
+      await onExportCourse(course.id)
+      toast({ title: 'Course exported', description: `“${course.title}” was saved as a JSON file.` })
+    } catch (err) {
+      toast({
+        title: 'Export failed',
+        description: (err as Error)?.message || 'Could not export this course. Please try again.',
+        variant: 'destructive',
+      })
+    } finally {
+      setExportingId(null)
+    }
+  }
+
+  const handleImportFile = async (file: File | undefined) => {
+    // allow picking the same file again: reset the input value so onChange fires
+    if (fileInputRef.current) fileInputRef.current.value = ''
+    if (!file) return
+    if (importing) return
+    setImporting(true)
+    try {
+      const created = await onImportCourse(file)
+      toast({
+        title: 'Course imported',
+        description: `“${created?.title ?? file.name}” was added to your library.`,
+      })
+    } catch (err) {
+      toast({
+        title: 'Import failed',
+        description:
+          (err as Error)?.message ||
+          'Could not import this file. Make sure it is a course exported from CourseForge.',
+        variant: 'destructive',
+      })
+    } finally {
+      setImporting(false)
+    }
+  }
 
   const handleDeleteConfirmed = async () => {
     if (!confirmDelete) return
@@ -90,16 +141,39 @@ export function CourseLibrary({
               </p>
             </div>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onOpenSettings}
-            className="border-zinc-700 text-zinc-300 hover:bg-zinc-800"
-          >
-            <Settings2 className="h-4 w-4 mr-1.5" />
-            <span className="hidden sm:inline">API Settings</span>
-            {!configured && <CircleAlert className="h-4 w-4 ml-1.5 text-amber-400" />}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={importing}
+              className="border-zinc-700 text-zinc-300 hover:bg-zinc-800"
+            >
+              {importing ? (
+                <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+              ) : (
+                <Upload className="h-4 w-4 mr-1.5" />
+              )}
+              <span className="hidden sm:inline">Import course</span>
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".json,application/json"
+              className="hidden"
+              onChange={(e) => handleImportFile(e.target.files?.[0])}
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onOpenSettings}
+              className="border-zinc-700 text-zinc-300 hover:bg-zinc-800"
+            >
+              <Settings2 className="h-4 w-4 mr-1.5" />
+              <span className="hidden sm:inline">API Settings</span>
+              {!configured && <CircleAlert className="h-4 w-4 ml-1.5 text-amber-400" />}
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -157,7 +231,7 @@ export function CourseLibrary({
         ) : courses.length === 0 ? (
           <div className="text-center py-16 text-zinc-600">
             <BookOpen className="h-10 w-10 mx-auto mb-3 opacity-40" />
-            <p className="text-sm">No courses yet — create one above.</p>
+            <p className="text-sm">No courses yet — create one above, or import a course file.</p>
           </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2">
@@ -172,6 +246,23 @@ export function CourseLibrary({
               >
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <h3 className="font-semibold text-zinc-100 leading-snug pr-8">{c.title}</h3>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-[4.75rem] top-3 h-7 w-7 text-zinc-600 hover:text-sky-400 hover:bg-sky-950/50 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleExport(c)
+                    }}
+                    aria-label={`Export ${c.title}`}
+                    title="Export course as JSON"
+                  >
+                    {exportingId === c.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Download className="h-4 w-4" />
+                    )}
+                  </Button>
                   <Button
                     variant="ghost"
                     size="icon"
